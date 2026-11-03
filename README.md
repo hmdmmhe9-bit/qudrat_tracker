@@ -1,1 +1,1 @@
-# qudrat_tracker
+قدراااات

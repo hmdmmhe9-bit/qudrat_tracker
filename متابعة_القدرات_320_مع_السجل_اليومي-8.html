@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f4f6fb">
+<title>متابعة القدرات - 320 قسمًا</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;padding:14px;background:#f4f6fb;color:#182238;font-family:Tahoma,Arial,sans-serif}
+main{max-width:950px;margin:auto;background:#fff;padding:20px;border-radius:18px;box-shadow:0 5px 25px #18223812}
+h1{font-size:1.5rem;margin:0 0 8px}
+.sub{color:#657087;line-height:1.7;margin:0 0 18px}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}
+.card{background:#f0f4ff;border-radius:12px;padding:12px;text-align:center}
+.card small{display:block;color:#5d6780}
+.card strong{display:block;font-size:1.5rem;margin-top:5px}
+.progress{height:16px;background:#e6eaf2;border-radius:30px;overflow:hidden}
+#bar{height:100%;width:0;background:#238653;transition:width .2s}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}
+button{font:inherit;border:0;border-radius:10px;padding:10px 13px;cursor:pointer}
+.secondary{background:#edf1f8;color:#26344e}
+.danger{background:#fff0f0;color:#a32c2c}
+.grid{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:7px;margin-top:14px}
+.tile{min-height:43px;border:1px solid #d9dfeb;border-radius:9px;background:white;color:#25324a;font-weight:bold;cursor:pointer}
+.tile.done{background:#dff5e8;border-color:#238653;color:#17653d}
+.section-title{margin:24px 0 10px;font-size:1.15rem}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:280px}
+th,td{padding:10px;border-bottom:1px solid #e8ebf2;text-align:center}
+th{background:#f5f7fb}
+.empty{color:#788196;text-align:center;padding:16px}
+.tip{font-size:.88rem;color:#68738a;line-height:1.7;margin-top:14px}
+#status{min-height:22px;color:#238653;font-size:.9rem}
+@media(max-width:620px){.grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}.tile{min-height:42px}.cards{gap:7px}.card{padding:10px 5px}.card strong{font-size:1.25rem}main{padding:15px}}
+</style>
+</head>
+<body>
+<main>
+  <h1>📚 متابعة إنجاز القدرات</h1>
+  <p class="sub">اضغط على رقم القسم عند إنهائه. يُسجَّل تاريخ إنجازه تلقائيًا، ويظل محفوظًا عند إغلاق الصفحة والعودة إليها على نفس الجهاز والمتصفح.</p>
+
+  <section class="cards">
+    <div class="card"><small>نسبة الإنجاز الكلية</small><strong id="percent">0%</strong></div>
+    <div class="card"><small>الأقسام المكتملة</small><strong id="done">0 / 320</strong></div>
+    <div class="card"><small>أنجزت اليوم</small><strong id="today">0</strong></div>
+  </section>
+  <div class="progress"><div id="bar"></div></div>
+
+  <div class="actions">
+    <button class="secondary" id="todayBtn">عرض إنجاز اليوم</button>
+    <button class="secondary" id="allBtn">تحديد كل الأقسام</button>
+    <button class="danger" id="resetBtn">مسح التقدم بالكامل</button>
+  </div>
+  <div id="status" aria-live="polite"></div>
+
+  <h2 class="section-title">الأقسام الـ320</h2>
+  <div class="grid" id="grid"></div>
+
+  <h2 class="section-title">📅 سجل إنجازك اليومي</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>التاريخ</th><th>الأقسام التي أنجزتها</th><th>النسبة من 320</th></tr></thead>
+      <tbody id="history"></tbody>
+    </table>
+  </div>
+  <p class="tip">ملاحظة: السجل يحفظ عدد الأقسام التي وضعت عليها علامة الإنجاز في كل يوم. إذا أزلت العلامة من قسم، يُحذف تسجيله من يومه. لا تمسح بيانات المتصفح أو تخزين الموقع حتى لا تفقد تقدمك.</p>
+</main>
+
+<script>
+(() => {
+  "use strict";
+  const TOTAL = 320;
+  const STORAGE_KEY = "qudrat320_progress_v2";
+  const grid = document.getElementById("grid");
+  const historyBody = document.getElementById("history");
+  const status = document.getElementById("status");
+
+  // Each completed section stores the calendar date on which it was checked.
+  let records = {};
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    if (saved && typeof saved === "object" && !Array.isArray(saved)) {
+      for (const [id, date] of Object.entries(saved)) {
+        const n = Number(id);
+        if (Number.isInteger(n) && n >= 1 && n <= TOTAL &&
+            typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          records[n] = date;
+        }
+      }
+    }
+  } catch (e) {
+    records = {};
+  }
+
+  function localDateKey(date = new Date()) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+  function displayDate(key) {
+    const [y,m,d] = key.split("-");
+    return `${d}/${m}/${y}`;
+  }
+  function save() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+      status.textContent = "تم حفظ تقدمك تلقائيًا ✓";
+    } catch (e) {
+      status.textContent = "تعذر الحفظ. تأكد أن المتصفح يسمح بالتخزين.";
+    }
+    update();
+  }
+  function update() {
+    const done = Object.keys(records).length;
+    const pct = done / TOTAL * 100;
+    const todayKey = localDateKey();
+    const todayCount = Object.values(records).filter(date => date === todayKey).length;
+    document.getElementById("percent").textContent = `${pct.toFixed(2).replace(/\.00$/, "")}%`;
+    document.getElementById("done").textContent = `${done} / ${TOTAL}`;
+    document.getElementById("today").textContent = todayCount;
+    document.getElementById("bar").style.width = `${pct}%`;
+
+    for (const tile of grid.children) {
+      const id = Number(tile.dataset.id);
+      const isDone = Object.prototype.hasOwnProperty.call(records, id);
+      tile.classList.toggle("done", isDone);
+      tile.setAttribute("aria-pressed", String(isDone));
+      tile.title = isDone ? `القسم ${id} — أُنجز بتاريخ ${displayDate(records[id])}` : `القسم ${id} — لم يُنجز بعد`;
+    }
+
+    const daily = {};
+    for (const date of Object.values(records)) daily[date] = (daily[date] || 0) + 1;
+    const dates = Object.keys(daily).sort((a,b) => b.localeCompare(a));
+    historyBody.innerHTML = "";
+    if (!dates.length) {
+      const tr = document.createElement("tr");
+      const td = document.createElement("td");
+      td.colSpan = 3;
+      td.className = "empty";
+      td.textContent = "لم تسجل أي إنجاز بعد. ابدأ بالضغط على المربعات!";
+      tr.appendChild(td);
+      historyBody.appendChild(tr);
+    } else {
+      for (const date of dates) {
+        const tr = document.createElement("tr");
+        const values = [displayDate(date), daily[date], `${(daily[date] / TOTAL * 100).toFixed(2)}%`];
+        values.forEach(value => {
+          const td = document.createElement("td");
+          td.textContent = value;
+          tr.appendChild(td);
+        });
+        historyBody.appendChild(tr);
+      }
+    }
+  }
+
+  for (let i = 1; i <= TOTAL; i++) {
+    const tile = document.createElement("button");
+    tile.type = "button";
+    tile.className = "tile";
+    tile.textContent = i;
+    tile.dataset.id = i;
+    tile.addEventListener("click", () => {
+      if (Object.prototype.hasOwnProperty.call(records, i)) {
+        delete records[i];
+      } else {
+        records[i] = localDateKey();
+      }
+      save();
+    });
+    grid.appendChild(tile);
+  }
+
+  document.getElementById("todayBtn").addEventListener("click", () => {
+    const key = localDateKey();
+    const count = Object.values(records).filter(date => date === key).length;
+    status.textContent = `إنجاز اليوم (${displayDate(key)}): ${count} قسم.`;
+  });
+  document.getElementById("allBtn").addEventListener("click", () => {
+    if (!confirm("هل تريد تسجيل الأقسام الـ320 كلها كمكتملة اليوم؟")) return;
+    const key = localDateKey();
+    for (let i = 1; i <= TOTAL; i++) if (!records[i]) records[i] = key;
+    save();
+  });
+  document.getElementById("resetBtn").addEventListener("click", () => {
+    if (!confirm("سيتم حذف سجل الإنجاز بالكامل. هل أنت متأكد؟")) return;
+    records = {};
+    save();
+  });
+
+  update();
+})();
+</script>
+</body>
+</html>
